@@ -254,6 +254,12 @@ export default {
           to: "/payouts",
           order: 12,
         },
+        {
+          icon: "mdi-ticket-percent",
+          text: "Vouchers",
+          to: "/vouchers",
+          order: 13,
+        },
       ],
       superuserItems: [
         {

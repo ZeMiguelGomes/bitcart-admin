@@ -516,6 +516,7 @@ export default {
       if (sortBy.length === 1 && sortDesc.length === 1) {
         url += `&sort=${sortBy[0]}&desc=${sortDesc[0]}`
       }
+      // Get all the data (invoices, wallets, stores) to display in the table
       this.$axios.get(url).then((resp) => {
         this.items = resp.data.result
         this.numItems = resp.data.count

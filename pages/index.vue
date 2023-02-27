@@ -139,6 +139,21 @@ export default {
           ],
           link: "/payouts",
         },
+        {
+          texts: [
+            {
+              header: "Vouchers",
+              key: "voucher",
+              value: "",
+            },
+            {
+              header: "Total vouchers available:",
+              key: "voucher",
+              value: "vouchers in store",
+            },
+          ],
+          link: "/vouchers",
+        },
       ],
     }
   },
