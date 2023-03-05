@@ -1,0 +1,5 @@
+{
+    "prettier.semi": false,
+    "typescript.format.semicolons": "remove",
+    "typescript.format.insertSpaceAfterSemicolonInForStatements": false
+}

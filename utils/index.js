@@ -271,4 +271,52 @@ export default {
     const [, fractionAmount] = valueStr.split(".")
     return fractionAmount ? fractionAmount.length : 0
   },
+  async transferNFT() {
+    const chainid = await this.web3.eth.getChainId()
+    console.log("ChainID: " + chainid)
+    console.log("Token ID: " + this.nftObject.id.tokenId)
+    // TODO Check if the chain id is equal gto the one received
+
+    const contract = await new this.web3.eth.Contract(
+      this.abiData,
+      this.contractAddress
+    )
+    console.log(contract)
+    const tokenIdHex = this.web3.utils.toHex(this.nftObject.id.tokenId)
+    console.log(tokenIdHex)
+
+    const functionSignature = contract.methods
+      .safeTransfer(
+        this.fromAddress,
+        this.toAddress,
+        this.web3.utils.toBN(tokenIdHex)
+      )
+      .encodeABI()
+
+    const gasPrice = await this.web3.eth.getGasPrice()
+
+    const gasEstimate = await contract.methods
+      .safeTransfer(this.fromAddress, this.toAddress, tokenIdHex)
+      .estimateGas({ from: this.fromAddress })
+
+    const transactionParameters = {
+      to: contract.options.address,
+      from: this.fromAddress,
+      gasPrice: this.web3.utils.toHex(gasPrice),
+      gas: this.web3.utils.toHex(gasEstimate),
+      data: functionSignature,
+    }
+    console.log(transactionParameters)
+    console.log(tokenIdHex)
+
+    // sign the transaction via MetaMask
+    try {
+      const txHash = await this.web3.eth.sendTransaction(transactionParameters)
+      console.log("Transaction hash: ", txHash)
+      return { success: true, txHash }
+    } catch (error) {
+      console.log("Error transferring NFT: ", error)
+      return { success: false, error }
+    }
+  },
 }
