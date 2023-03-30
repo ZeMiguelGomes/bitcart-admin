@@ -114,6 +114,7 @@
             v-if="header.component"
             :data="item[header.value]"
           />
+          <!-- Binds the item to be accessible in the parent component -->
           <p v-else>
             {{ header.dynamicText ? header.dynamicText(item) : header.text }}:
             <br /><span
@@ -158,7 +159,7 @@
       >
         <v-menu :key="slotName" offset-y allow-overflow max-height="300">
           <template #activator="{ on }">
-            <v-btn color="primary" v-on="on"> Show </v-btn>
+            <v-btn color="primary" v-on="on"> Show</v-btn>
           </template>
           <v-list v-if="item[dropdownNames[key]].length > 0">
             <slot
@@ -184,8 +185,9 @@
         </v-menu>
       </template>
       <template #[tabbedSlotName]="{ item }">
+        <!-- Show Payment Method -->
         <v-btn color="primary" @click="showTabbedDialog(item, item.id)">
-          Show
+          Showe
         </v-btn>
       </template>
       <template #[imageSlotName]="{ item }">
@@ -446,6 +448,7 @@ export default {
     this.$bus.$on("additem", (item) => {
       this.addItem(item)
     })
+    // Gets the Information for the table before mounting the page
     this.getItems = debounce(this.getItemsNolimit, 250)
     this.updateQueryString = debounce(this.updateQueryStringImpl, 250)
     this.searchProp = this.$route.query.query || this.searchProp
@@ -521,6 +524,7 @@ export default {
         this.items = resp.data.result
         this.numItems = resp.data.count
         this.loading = false
+        console.log(this.items)
       })
     },
     addItem(item) {

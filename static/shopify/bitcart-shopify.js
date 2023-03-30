@@ -154,7 +154,7 @@ window.BitcartShopifyIntegrationModule = function () {
           handleInvoiceData(d, { backgroundCheck: true })
         })
       })
-      window.bitcart.showInvoice(currentInvoiceData.invoice_id)
+      window.bitcart.showInvoice(currentInvoiceData.invoice_id, Shopify.checkout.line_items)
     }
   }
 

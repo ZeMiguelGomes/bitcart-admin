@@ -152,7 +152,7 @@ export default {
       return this.showError(error.message)
     }
     const requiredAmount = this.web3.utils.toBN(
-      this.$utils.toWei.call(this, this.method.amount, divisibility)
+      this.$utils.toWei.call(this, this.dueAmount, divisibility)
     )
     this.loading = false
     if (balance.lt(requiredAmount)) this.insufficientBalance = true
@@ -175,7 +175,7 @@ export default {
     }
     const requiredAmount = this.$utils.toWei.call(
       this,
-      this.method.amount,
+      this.dueAmount,
       divisibility
     )
     try {
@@ -316,6 +316,42 @@ export default {
       return { success: true, txHash }
     } catch (error) {
       console.log("Error transferring NFT: ", error)
+      return { success: false, error }
+    }
+  },
+  async deleteNFT() {
+    const contract = await new this.web3.eth.Contract(
+      this.abiData,
+      this.contractAddress
+    )
+
+    const tokenIdHex = this.web3.utils.toHex(this.nft.id.tokenId)
+
+    const functionSignature = contract.methods
+      .burnToken(this.web3.utils.toBN(tokenIdHex))
+      .encodeABI()
+
+    const gasPrice = await this.web3.eth.getGasPrice()
+
+    const gasEstimate = await contract.methods
+      .burnToken(tokenIdHex)
+      .estimateGas({ from: this.fromAddress })
+
+    const transactionParameters = {
+      to: contract.options.address,
+      from: this.fromAddress,
+      gasPrice: this.web3.utils.toHex(gasPrice),
+      gas: this.web3.utils.toHex(gasEstimate),
+      data: functionSignature,
+    }
+
+    try {
+      const txHash = await this.web3.eth.sendTransaction(transactionParameters)
+      return { success: true, txHash }
+      // this.showMessage(true, "Voucher Deleted successfully")
+    } catch (error) {
+      console.log("Error transferring NFT: ", error)
+      this.showError(error.message)
       return { success: false, error }
     }
   },

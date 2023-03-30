@@ -344,6 +344,7 @@
                       >
                         <v-tab>Scan</v-tab>
                         <v-tab>Copy</v-tab>
+                        <v-tab>Vouchers</v-tab>
                       </v-tabs>
                       <v-divider />
                       <v-tabs-items
@@ -358,6 +359,7 @@
                           :abi-cache="abiCache"
                           :checkout-page="checkoutPage"
                         >
+                          <!-- Tab Scan -->
                           <v-tab-item>
                             <v-container fill-height>
                               <v-row align="center" justify="center">
@@ -427,6 +429,7 @@
                               </v-row>
                             </v-container>
                           </v-tab-item>
+                          <!-- Tab Copy -->
                           <v-tab-item>
                             <v-card flat class="pa-0 ma-0">
                               <v-card-text>
@@ -470,6 +473,16 @@
                                 </UIExtensionSlot>
                               </v-card-text>
                             </v-card>
+                          </v-tab-item>
+                          <!-- Tab Vouchers -->
+                          <v-tab-item>
+                            <MetaMaskLogin
+                              ref="confirmVoucher"
+                              :screen="'modal'"
+                              :line-items="lineItems"
+                              @choose-voucher="onVoucherSelected"
+                              @submit-voucher="onVoucherSubmited"
+                            />
                           </v-tab-item>
                         </UIExtensionSlot>
                       </v-tabs-items>
@@ -603,6 +616,8 @@ import DisplayField from "@/components/DisplayField"
 import MetamaskButton from "@/components/MetamaskButton"
 import WalletConnectButton from "@/components/WalletConnectButton"
 import UIExtensionSlot from "@/components/UIExtensionSlot"
+import MetaMaskLogin from "@/components/MetaMaskLogin.vue"
+
 export default {
   components: {
     CloseButton,
@@ -610,6 +625,7 @@ export default {
     MetamaskButton,
     WalletConnectButton,
     UIExtensionSlot,
+    MetaMaskLogin,
   },
   props: {
     showProp: {
@@ -630,6 +646,12 @@ export default {
       type: Object,
       default() {
         return {}
+      },
+    },
+    lineItems: {
+      type: Array,
+      default() {
+        return []
       },
     },
   },
@@ -657,6 +679,21 @@ export default {
       tabsRef: null,
       emailFormRef: null,
       additionalFormRef: null,
+      voucherValue: 0,
+      abiData: {},
+      contractAddress: "",
+    }
+  },
+  head() {
+    return {
+      script: [
+        {
+          src: `https://unpkg.com/@metamask/detect-provider/dist/detect-provider.min.js`,
+        },
+        {
+          src: `https://unpkg.com/web3@latest/dist/web3.min.js`,
+        },
+      ],
     }
   },
   computed: {
@@ -664,6 +701,8 @@ export default {
       return parseFloat(this.invoice.price) === 0
     },
     itemv() {
+      console.log("INVOICE ITEMV")
+      console.log(this.invoice)
       return this.invoice.payments[this.selectedCurrency]
     },
     currentPrice() {
@@ -776,6 +815,17 @@ export default {
     this.$bus.$off("showDetails")
   },
   mounted() {
+    // Update the invoice object since it only updates in the backend
+    this.$on("update:invoice", (invoice) => {
+      console.log("Received update:invoice event with invoice:", invoice)
+    })
+    this.$on("partial-payment-received", (blockVoucherTab) => {
+      // Handle the event data here
+      if (blockVoucherTab) {
+        this.selectedAction = 0 // switch to the "Scan" tab
+      }
+      this.$refs.confirmVoucher.$emit("confirm-voucher-button", blockVoucherTab)
+    })
     this.fetchTokenABI()
     const date = new Date()
     date.setSeconds(date.getSeconds() + this.invoice.time_left)
@@ -866,7 +916,9 @@ export default {
         if (!ref.validate()) return
         address = this.inputPaymentAddress
       }
+      console.log(address)
       this.addressUpdating = true
+      // This patch will be responsible to determine which payment method is being used
       this.$axios
         .patch(`/invoices/${this.invoice.id}/details`, {
           id: this.itemv.id,
@@ -895,6 +947,140 @@ export default {
     },
     openInWallet(url) {
       window.open(url)
+    },
+    async onVoucherSelected(selectedNFT, addressFunc) {
+      // Handle the selectedNFT hereå
+
+      const address = addressFunc()
+      // Add to the selected tcurrency, the address of the user
+      const payments = this.invoice.payments
+      payments[this.selectedCurrency].user_address = address
+      this.$emit("update:invoice", { ...this.invoice, payments })
+
+      if (typeof window.ethereum !== "undefined") {
+        try {
+          const chainId = parseInt(await window.ethereum.networkVersion)
+
+          console.log("Payment ID")
+          console.log(this.itemv.id)
+          const data = {
+            chainID: chainId,
+            voucherID: selectedNFT.id.tokenId,
+            invoiceID: this.invoice.id,
+            id: this.itemv.id,
+          }
+          // Gets the value of the NFT in the selected currency
+          try {
+            await this.$axios
+              .post("/vouchers/submit/", data)
+              .then((resp) => {
+                if (resp.status === 200) {
+                  this.voucherValue = resp.data
+                  console.log(this.voucherValue)
+                }
+              })
+              .catch((err) => this.handleErr(err))
+          } catch (error) {
+            console.log(error)
+          }
+        } catch (error) {
+          console.error(error)
+        }
+      }
+
+      // TODO:
+      // Add a option change the voucher selected and the discount applied
+
+      const sentAmount = parseFloat(this.invoice.sent_amount) // convert the string to a float
+      const newSentAmount = sentAmount + this.voucherValue
+      const newSentAmountStr = newSentAmount.toFixed(8) // format the result as a string with 8 decimal places
+      console.log(newSentAmountStr)
+
+      this.$axios
+        .patch(`/invoices/${this.invoice.id}/customer`, {
+          sent_amount: newSentAmountStr,
+          paymentID: this.itemv.id,
+          // paid_currency: "MATIC",
+        })
+        .then((r) => {
+          this.$emit("update:invoice", {
+            ...this.invoice,
+            sent_amount: newSentAmountStr,
+            // paid_currency: "MATIC",
+          })
+        })
+    },
+    async onVoucherSubmited(selectedNFT, addressFunc) {
+      // Creates a transaction and if it is all godd, updates the invoice
+      // TODO:
+      // 1-> Create a mechanism where the user cannot confirm the voucher until he has paid something
+      // 2-> After confirming that, add the transaction hash to the list of current tranactions of the invoice
+      await this.fetchVoucherTokenABI()
+
+      if (window.ethereum) {
+        this.web3 = new window.Web3(window.ethereum)
+        this.nft = selectedNFT
+        this.fromAddress = addressFunc()
+
+        try {
+          const deleteNFTResult = await this.$utils.deleteNFT.call(this)
+          // TODO:
+          // 1 -> Add tx_hash to the invoice, check if I need to fetch the updated invoice object of if the update:invoice is enough
+          if (deleteNFTResult.success) {
+            const txHash = deleteNFTResult.txHash
+            console.log("NFT Tx Hash")
+            console.log(txHash)
+            // txHash.transactionHash
+            console.log("Final Invoice")
+            console.log(this.invoice)
+
+            const sentAmount = parseFloat(this.invoice.sent_amount) // convert the string to a float
+            const newSentAmount = sentAmount + this.voucherValue
+            const newSentAmountStr = newSentAmount.toFixed(8) // format the result as a string with 8 decimal places
+            console.log(txHash.transactionHash)
+
+            this.$axios
+              .patch(`/invoices/${this.invoice.id}/customer`, {
+                sent_amount: newSentAmountStr,
+                tx_hashes: txHash.transactionHash,
+                paymentID: this.itemv.id,
+                // paid_currency: "MATIC",
+              })
+              .then((r) => {
+                this.$emit("update:invoice", {
+                  ...this.invoice,
+                  sent_amount: newSentAmountStr,
+                  tx_hashes: txHash.transactionHash,
+
+                  // paid_currency: "MATIC",
+                })
+              })
+            console.log("DONE")
+          } else {
+            this.$refs.confirmVoucher.$emit(
+              "show-error",
+              "Error transfering the voucher"
+            )
+          }
+        } catch (error) {
+          this.$refs.confirmVoucher.$emit("show-error", error.message)
+        }
+      } else {
+        window.location.href = "https://metamask.io/download"
+      }
+    },
+    async fetchVoucherTokenABI() {
+      // Gets the ABI to create a transaction
+      await this.$axios.get(`/vouchers/nft/abi`).then((res) => {
+        this.abiData = res.data.ABI
+        this.contractAddress = res.data.contractAddress
+      })
+    },
+    showError(message) {
+      this.$refs.confirmVoucher.$emit("show-error", message)
+    },
+    handleUpdateInvoice($event) {
+      console.log("$event:", $event)
     },
   },
 }

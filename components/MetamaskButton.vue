@@ -45,6 +45,8 @@ export default {
       snackbarColor: "error",
       loading: false,
       insufficientBalance: false,
+      dueAmount: "",
+      latestInvoiceData: null,
     }
   },
   head() {
@@ -77,15 +79,43 @@ export default {
     },
     async connectToMetamask() {
       if (window.ethereum) {
+        const latestInvoiceData = await this.getInvoice()
+        this.latestInvoiceData = latestInvoiceData
+        this.dueAmount = await this.getDueAmount()
         this.web3 = new window.Web3(window.ethereum)
+        console.log("Fetched Latest invoice")
         await this.$utils.connectToWallet.call(
           this,
           "metamask",
           () => window.ethereum.selectedAddress,
           this.updateAddress
         )
+        this.loading = false
       } else {
         window.location.href = "https://metamask.io/download"
+      }
+    },
+    async getInvoice() {
+      return await this.$axios
+        .get(`/invoices/${this.$route.params.id}`)
+        .then((resp) => {
+          return resp.data
+        })
+        .catch((err) => this.setError(err))
+    },
+    getDueAmount() {
+      if (this.method.name === this.latestInvoiceData.paid_currency) {
+        const difference = Math.max(
+          0,
+          this.method.amount - this.latestInvoiceData.sent_amount
+        )
+        const decimalValue = this.$utils.decimalStr(
+          difference,
+          this.method.divisibility
+        )
+        return decimalValue
+      } else {
+        return this.method.amount
       }
     },
   },

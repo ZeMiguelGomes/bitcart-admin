@@ -27,11 +27,14 @@
         <div v-else>
           <TabbedCheckout
             v-if="status === 'pending'"
+            ref="partialPayment"
             :checkout-page="true"
             :invoice.sync="invoice"
             :store="store"
+            :line-items="lineItems"
             class="px-0 pb-0"
             @closedialog="closeDialog"
+            @update:invoice="handleUpdateInvoice"
           />
           <v-card-text v-else class="no-overflow py-12">
             <close-button class="mt-n8" @closedialog="closeDialog" />
@@ -113,12 +116,21 @@ export default {
           text: "This invoice is invalid",
         },
       },
+      lineItems: [],
+      latestInvoiceData: null,
     }
   },
   beforeCreate() {
     this.$vuetify.theme.dark = false // dark theme unsupported here
   },
   mounted() {
+    // Gets all the products that are in the user's checkout
+    const encodedLineItems = this.$route.query.lineItems
+    if (encodedLineItems) {
+      const decodedLineItems = decodeURIComponent(encodedLineItems)
+      this.lineItems = JSON.parse(decodedLineItems)
+    }
+
     this.$axios
       .get(`/invoices/${this.$route.params.id}`)
       .then((resp) => {
@@ -132,6 +144,7 @@ export default {
             this.$vuetify.theme.dark =
               this.store.checkout_settings.use_dark_mode
             this.loading = false
+            // The frame is already in the screen, so lets start a websocket to listen the payment methods
             this.startWebsocket()
           })
           .catch((err) => (this.errorText = err))
@@ -144,6 +157,17 @@ export default {
     }
   },
   methods: {
+    async getInvoice() {
+      return await this.$axios
+        .get(`/invoices/${this.$route.params.id}`)
+        .then((resp) => {
+          return resp.data
+        })
+        .catch((err) => this.setError(err))
+    },
+    handleUpdateInvoice($event) {
+      console.log("$event:", $event)
+    },
     setError(err) {
       if (err.response && err.response.status === 404) {
         this.errorText = "Invoice not found"
@@ -162,19 +186,41 @@ export default {
       )
       url = url.replace("http://", "ws://").replace("https://", "wss://")
       this.websocket = new WebSocket(url)
-      this.websocket.onmessage = (event) => {
+      // The following method waits for the event/answer sent by the backend to the previous endpoint
+      this.websocket.onmessage = async (event) => {
         const data = JSON.parse(event.data)
+        console.log("DATA JSON")
+        console.log(data)
         const status = data.status
         if (
           status === "pending" &&
           this.invoice.sent_amount !== data.sent_amount
         ) {
           // received partial payment
+          // get the latest information about the invoice
+          const latestInvoiceData = await this.getInvoice()
+          console.log("Data Invoice")
+          console.log(latestInvoiceData)
+          this.latestInvoiceData = latestInvoiceData
+
+          let blockVoucherTab = true
+          if (
+            this.latestInvoiceData &&
+            this.latestInvoiceData.tx_hashes &&
+            this.latestInvoiceData.tx_hashes.length > 0
+          ) {
+            console.log(this.latestInvoiceData.tx_hashes)
+            blockVoucherTab = false
+          }
           this.invoice.exception_status = data.exception_status
           this.invoice.sent_amount = data.sent_amount
           this.invoice.paid_currency = data.paid_currency
           this.$bus.$emit("showDetails")
           this.showPartial = true
+          this.$refs.partialPayment.$emit(
+            "partial-payment-received",
+            blockVoucherTab
+          )
         }
         if (this.invoice.status !== status) {
           window.parent.postMessage(

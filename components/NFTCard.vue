@@ -1,34 +1,50 @@
 <template>
   <div>
-    <v-card class="nft-card" outlined>
+    <v-card
+      class="nft-card d-flex align-center justify-center"
+      :class="[
+        screen === 'modal' ? '' : 'flex-column',
+        isSelected ? 'border-3 border-primary' : '',
+      ]"
+      outlined
+      :width="screen === 'admin' ? '100%' : '300px'"
+      @click="onCardClick"
+    >
       <v-img
         :src="nftMedia"
         :alt="nft.title"
-        height="300"
+        :height="screen === 'admin' ? '300px' : '150px'"
+        :width="screen === 'admin' ? '300px' : '150px'"
         class="rounded-t-md"
       ></v-img>
 
       <v-card-text>
-        <h2 class="text-xl font-weight-bold mb-1">{{ nft.title }}</h2>
-        <p class="mb-2">
-          Id: {{ nft.id.tokenId.substr(nft.id.tokenId.length - 4) }}
-        </p>
-        <p class="mb-4">{{ contractAddressShortened }}</p>
-        <p class="text-gray-600">{{ nft.description.substr(0, 150) }}</p>
-        <div
-          v-for="attribute in nft.metadata.attributes"
-          :key="attribute.trait_type"
-        >
-          <span class="font-weight-bold">{{ attribute.trait_type }}: </span>
-          <span>{{ attribute.value }}</span>
-        </div>
+        <template v-if="screen === 'modal'">
+          <h2 class="text-xl font-weight-bold mb-1">{{ nft.title }}</h2>
+          <p class="text-gray-600">{{ nft.description.substr(0, 150) }}</p>
+        </template>
+        <template v-else>
+          <h2 class="text-xl font-weight-bold mb-1">{{ nft.title }}</h2>
+          <p class="mb-2">
+            Id: {{ nft.id.tokenId.substr(nft.id.tokenId.length - 4) }}
+          </p>
+          <p class="mb-4">{{ contractAddressShortened }}</p>
+          <p class="text-gray-600">{{ nft.description.substr(0, 150) }}</p>
+          <div
+            v-for="attribute in nft.metadata.attributes"
+            :key="attribute.trait_type"
+          >
+            <span class="font-weight-bold">{{ attribute.trait_type }}: </span>
+            <span>{{ attribute.value }}</span>
+          </div>
+        </template>
       </v-card-text>
-      <v-card-actions class="d-flex justify-center">
+      <v-card-actions v-if="screen === 'admin'" class="d-flex justify-center">
         <v-btn color="primary" @click="openBlockExplorer">
           View on Block Explorer
         </v-btn>
       </v-card-actions>
-      <v-card-actions>
+      <v-card-actions v-if="screen === 'admin'">
         <tooltip-icon
           icon="mdi-delete"
           text="Delete"
@@ -43,7 +59,7 @@
     <v-snackbar
       v-model="showSnackbar"
       :timeout="2500"
-      color="success"
+      :color="snackbarColor"
       @input="onSnackbarInput"
     >
       {{ snackbarMessage }}
@@ -66,6 +82,11 @@ export default {
       type: String,
       required: true,
     },
+    // If screen is "modal", the display is smaller and has a selector to select the current NFT
+    screen: {
+      type: String,
+      required: true,
+    },
   },
   data() {
     return {
@@ -75,6 +96,7 @@ export default {
       abiData: {},
       contractAddress: "",
       fromAddress: "",
+      isSelected: false,
     }
   },
   head() {
@@ -105,7 +127,6 @@ export default {
     console.log(this.nft)
     this.fromAddress = localStorage.getItem("userAddress")
   },
-
   methods: {
     openBlockExplorer() {
       const chainId = parseInt(this.chainId)
@@ -162,43 +183,7 @@ export default {
       if (window.ethereum) {
         this.web3 = new window.Web3(window.ethereum)
 
-        const contract = await new this.web3.eth.Contract(
-          this.abiData,
-          this.contractAddress
-        )
-
-        const tokenIdHex = this.web3.utils.toHex(this.nft.id.tokenId)
-
-        const functionSignature = contract.methods
-          .burnToken(this.web3.utils.toBN(tokenIdHex))
-          .encodeABI()
-
-        const gasPrice = await this.web3.eth.getGasPrice()
-
-        const gasEstimate = await contract.methods
-          .burnToken(tokenIdHex)
-          .estimateGas({ from: this.fromAddress })
-
-        const transactionParameters = {
-          to: contract.options.address,
-          from: this.fromAddress,
-          gasPrice: this.web3.utils.toHex(gasPrice),
-          gas: this.web3.utils.toHex(gasEstimate),
-          data: functionSignature,
-        }
-
-        // sign the transaction via MetaMask
-        try {
-          const txHash = await this.web3.eth.sendTransaction(
-            transactionParameters
-          )
-          console.log("Transaction hash: ", txHash)
-          this.showMessage(true, "Voucher Deleted successfully")
-        } catch (error) {
-          console.log("Error transferring NFT: ", error)
-          this.showError(false, error.message)
-        }
-        // After the transfer is completed wait 2 seconds and then refresh the page
+        await this.$utils.deleteNFT.call(this)
       } else {
         window.location.href = "https://metamask.io/download"
       }
@@ -210,13 +195,16 @@ export default {
         }, 2500)
       }
     },
+    onCardClick() {
+      this.$emit("cardSelected", this.nft.id)
+      this.isSelected = !this.isSelected
+    },
   },
 }
 </script>
 
-<style>
+<style scoped>
 .nft-card {
-  width: 300px;
   object-fit: cover;
 }
 
@@ -224,5 +212,10 @@ export default {
   display: flex;
   justify-content: space-around;
   align-items: center;
+}
+
+.selected {
+  border: 3px solid rgb(40, 80, 228);
+  border-radius: 10px;
 }
 </style>

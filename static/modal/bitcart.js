@@ -96,10 +96,11 @@
     onModalReceiveMessageMethod(event)
   }
 
-  function showInvoice(invoiceId) {
+  function showInvoice(invoiceId, lineItems) {
     showingInvoice = true
     window.document.body.appendChild(iframe)
-    const invoiceUrl = origin + "/i/" + invoiceId + "?modal=true"
+    let invoiceUrl = origin + "/i/" + invoiceId + "?modal=true"
+    invoiceUrl += "&lineItems=" + encodeURIComponent(JSON.stringify(lineItems))
     iframe.src = invoiceUrl
   }
 
@@ -107,6 +108,7 @@
     window.removeEventListener("load", load)
   })
 
+  // Will listen to any message sent by the child _id.vue with window.parent.postMessage("loaded", "*")
   window.addEventListener("message", receiveMessage, false)
 
   window.bitcart = {
