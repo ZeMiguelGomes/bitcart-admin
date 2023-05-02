@@ -12,6 +12,9 @@
         <v-col v-for="card in cards" :key="card.id" md="3" cols="12">
           <InfoCard :texts="card.texts" :link="card.link" />
         </v-col>
+        <v-col md="3" cols="12">
+          <info-card link="/vouchers" :texts="voucherTexts" />
+        </v-col>
         <UIExtensionSlot
           name="info_card"
           component="v-col"
@@ -139,21 +142,6 @@ export default {
           ],
           link: "/payouts",
         },
-        {
-          texts: [
-            {
-              header: "Vouchers",
-              key: "voucher",
-              value: "",
-            },
-            {
-              header: "Total vouchers available:",
-              key: "voucher",
-              value: "vouchers in store",
-            },
-          ],
-          link: "/vouchers",
-        },
       ],
     }
   },
@@ -180,6 +168,36 @@ export default {
         },
       ]
     },
+    voucherTexts() {
+      const fetchBalanceText = this.$auth.user
+        ? this.$auth.user.settings.fetch_balance
+          ? null
+          : "Disabled in settings"
+        : null
+      return [
+        {
+          header: "Vouchers",
+          customText: fetchBalanceText,
+          mainValue: this.$store.state.vouchers || 0,
+          value: "",
+        },
+        {
+          header: "Total vouchers available:",
+          key: "voucher",
+          value: "vouchers in store",
+          mainValue: this.$store.state.vouchers || 0,
+        },
+      ]
+    },
+  },
+  mounted() {
+    if (window.ethereum) {
+      window.ethereum.on("accountsChanged", (accounts) => {
+        if (accounts.length > 0) {
+          this.$store.dispatch("fetchVoucherCount")
+        }
+      })
+    }
   },
 }
 </script>

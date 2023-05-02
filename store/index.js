@@ -9,6 +9,7 @@ export const state = () => ({
     invoices: 0,
     payouts: 0,
   },
+  vouchers: 0,
   balance: 0.0,
   syncInfo: [],
   policies: {},
@@ -58,6 +59,9 @@ export const mutations = {
   },
   pinned(state, value) {
     state.pinned = value
+  },
+  setVouchers(state, value) {
+    state.vouchers = value
   },
 }
 export const actions = {
@@ -127,6 +131,29 @@ export const actions = {
     return this.$axios
       .get("/tor/services")
       .then((r) => commit("services", r.data))
+  },
+  async fetchVoucherCount({ commit, dispatch }, alwaysRun = false) {
+    if (this.state.auth.loggedIn) {
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+        })
+        const address = accounts[0]
+
+        this.$axios
+          .get(`/vouchers/stats?address=${address}`)
+          .then((resp) => commit("setVouchers", resp.data))
+      } else {
+        commit("setVouchers", 0)
+      }
+    }
+
+    // Maybe only trigger the dispacth after a change in the wallet or after the creation of a new
+    if (alwaysRun) {
+      setTimeout(() => {
+        dispatch("fetchVoucherCount")
+      }, 100000)
+    }
   },
   redirectA(_, { where, token, permissions, userId }) {
     return new Promise((resolve, reject) => {

@@ -88,7 +88,8 @@ export default {
         return true
       }
       try {
-        new URL(v) // eslint-disable-line no-new
+        const url = v.startsWith("www.") ? `http://${v}` : v
+        new URL(url) // eslint-disable-line no-new
         return true
       } catch (_) {
         return "Invalid URL"
@@ -97,6 +98,7 @@ export default {
     positive: (v) => isNull(v) || v > 0 || "Must be positive",
     nonnegative: (v) => isNull(v) || v >= 0 || "Must be non-negative",
     quantity: (v) => isNull(v) || v >= -1 || "Must be non-negative or -1",
+    selectRequired: (v) => (v !== null && v.length > 0) || "Required.",
   },
   downloadFile(resp) {
     const url = window.URL.createObjectURL(new Blob([resp.data]))
@@ -272,10 +274,12 @@ export default {
     return fractionAmount ? fractionAmount.length : 0
   },
   async transferNFT() {
+    // const chainid = await this.web3.eth.getChainId()
+    // chain ID is always MATIC 80001
     const chainid = await this.web3.eth.getChainId()
     console.log("ChainID: " + chainid)
     console.log("Token ID: " + this.nftObject.id.tokenId)
-    // TODO Check if the chain id is equal gto the one received
+    // TODO: Check if the chain id is equal gto the one received
 
     const contract = await new this.web3.eth.Contract(
       this.abiData,
@@ -320,6 +324,41 @@ export default {
     }
   },
   async deleteNFT() {
+    const chainid = 80001
+    const connectedChainID = await this.web3.eth.getChainId()
+
+    if (chainid !== connectedChainID) {
+      console.log("The chain id Is not Polygon")
+      console.log(this.web3)
+
+      try {
+        // Switch to Mumbai network (network ID 80001)
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x13881" }], // '0x13881' is the chain ID for Mumbai network
+        })
+      } catch (switchError) {
+        // This error code indicates that the chain has not been added to MetaMask.
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: "0xf00",
+                  chainName: "Mumbai",
+                  rpcUrls: [
+                    "https://matic-mumbai.chainstacklabs.com",
+                  ] /* ... */,
+                },
+              ],
+            })
+          } catch (addError) {
+            // handle "add" error
+          }
+        }
+      }
+    }
     const contract = await new this.web3.eth.Contract(
       this.abiData,
       this.contractAddress
@@ -351,6 +390,77 @@ export default {
       // this.showMessage(true, "Voucher Deleted successfully")
     } catch (error) {
       console.log("Error transferring NFT: ", error)
+      this.showError(error.message)
+      return { success: false, error }
+    }
+  },
+
+  async mintNFT(voucherURI) {
+    const chainid = 80001
+    const connectedChainID = await this.web3.eth.getChainId()
+    if (chainid !== connectedChainID) {
+      console.log("The chain id Is not Polygon")
+      console.log(this.web3)
+
+      try {
+        // Switch to Mumbai network (network ID 80001)
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x13881" }], // '0x13881' is the chain ID for Mumbai network
+        })
+      } catch (switchError) {
+        // This error code indicates that the chain has not been added to MetaMask.
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: "0xf00",
+                  chainName: "Mumbai",
+                  rpcUrls: [
+                    "https://matic-mumbai.chainstacklabs.com",
+                  ] /* ... */,
+                },
+              ],
+            })
+          } catch (addError) {
+            // handle "add" error
+          }
+        }
+      }
+    }
+    const contract = await new this.web3.eth.Contract(
+      this.abiData,
+      this.contractAddress
+    )
+
+    const address = window.ethereum.selectedAddress
+
+    const functionSignature = contract.methods
+      .safeMint(address, voucherURI)
+      .encodeABI()
+
+    const gasPrice = await this.web3.eth.getGasPrice()
+
+    const gasEstimate = await contract.methods
+      .safeMint(address, voucherURI)
+      .estimateGas({ from: address })
+
+    const transactionParameters = {
+      to: contract.options.address,
+      from: address,
+      gasPrice: this.web3.utils.toHex(gasPrice),
+      gas: this.web3.utils.toHex(gasEstimate),
+      data: functionSignature,
+    }
+
+    try {
+      const txHash = await this.web3.eth.sendTransaction(transactionParameters)
+      return { success: true, txHash }
+      // this.showMessage(true, "Voucher Deleted successfully")
+    } catch (error) {
+      // console.log("Error transferring NFT: ", error)
       this.showError(error.message)
       return { success: false, error }
     }

@@ -28,7 +28,10 @@
         </v-card-text>
       </v-card>
       <div class="d-flex flex-wrap mt-4 justify-center w-5/6">
-        <template v-if="NFT && NFT.length > 0">
+        <template v-if="isLoading">
+          <v-progress-circular indeterminate color="primary" />
+        </template>
+        <template v-else-if="NFT && NFT.length > 0">
           <NFTCard
             v-for="(nft, key) in NFT"
             :key="key"
@@ -102,6 +105,12 @@ export default {
         return []
       },
     },
+    invoice: {
+      type: Object,
+      default() {
+        return {}
+      },
+    },
   },
   data() {
     return {
@@ -120,6 +129,8 @@ export default {
       disableSubmitVoucher: false, // Disable the submit voucher
       disableConfirmVoucher: true,
       disableChangeVoucherButton: false, // Disable the change voucher button
+      isChangeButtonClicked: false, // Checks if the change voucher button is clicked
+      isLoading: false, // Loading animation
     }
   },
   head() {
@@ -166,26 +177,19 @@ export default {
     // Listen for changes in accounts
     window.ethereum.on("accountsChanged", (accounts) => {
       if (accounts.length > 0) {
+        console.log("Change Wallet")
         this.connectWallet()
       } else {
         this.address = null
       }
     })
 
-    // Listen for changes in network
-    window.ethereum.on("chainChanged", (chainId) => {
-      this.connectWallet()
-    })
-
     this.$on("confirm-voucher-button", (blockVoucherTab) => {
-      console.log("Metamask Login Component")
-      console.log(blockVoucherTab)
       this.disableConfirmVoucher = blockVoucherTab
       this.disableChangeVoucherButton = !blockVoucherTab
     })
 
     this.$on("show-error", (message) => {
-      console.log("SHOW ERROR EVENT")
       this.showError(message)
     })
   },
@@ -198,7 +202,8 @@ export default {
           const accounts = await window.ethereum.request({
             method: "eth_accounts",
           })
-          const chainId = await window.ethereum.networkVersion
+          // The chain ID has the be always the same MATIC for the vouchers
+          const chainId = "80001"
 
           this.address = accounts[0]
           this.chainId = chainId
@@ -214,6 +219,7 @@ export default {
     },
 
     async connectWallet() {
+      this.isLoading = true
       await this.loadProvider()
       // this runs after getying the user's address and ChainId
       await this.connectAPI()
@@ -229,7 +235,7 @@ export default {
         const encodedLineItems = encodeURIComponent(
           JSON.stringify(this.lineItems)
         )
-        url = `/vouchers/nftClient/?userAddress=${this.address}&chainID=${this.chainId}&lineItems=${encodedLineItems}`
+        url = `/vouchers/nftClient/?userAddress=${this.address}&chainID=${this.chainId}&storeID=${this.invoice.store_id}&lineItems=${encodedLineItems}`
       }
       await this.$axios
         .get(url)
@@ -238,7 +244,7 @@ export default {
           this.NFT = resp.data?.ownedNfts
           this.allNFT = [...resp.data?.ownedNfts]
           this.errorLogin = false
-          console.log(this.NFT)
+          this.isLoading = false
         })
         .catch((err) => {
           this.errorLogin = true
@@ -246,7 +252,6 @@ export default {
         })
     },
     onCardSelected(cardId) {
-      console.log(cardId)
       if (cardId === this.selectedCardId && !this.showChangeOptionButton) {
         this.selectedCardId = null
       } else {
@@ -270,20 +275,26 @@ export default {
         this.NFT = [this.selectedNFT]
         this.showChangeOptionButton = true
         // this.showMessage(true, "Voucher Submited")
-        this.$emit(
-          "choose-voucher",
-          this.selectedNFT,
-          () => window.ethereum.selectedAddress
-        )
+
+        if (!this.isChangeButtonClicked) {
+          this.$emit(
+            "choose-voucher",
+            this.selectedNFT,
+            () => window.ethereum.selectedAddress
+          )
+        } else {
+          // Means that the Button to change voucher was pressed
+          this.$emit("change-voucher", this.selectedNFT)
+        }
       } else {
         this.showError("Choose a voucher to use")
       }
-      console.log(this.selectedNFT)
     },
     resetSelection() {
       this.showChangeOptionButton = false
       this.selectedCardId = null
       this.NFT = this.allNFT
+      this.isChangeButtonClicked = true
     },
     confirmVoucher() {
       // Implement your logic to confirm the selection here

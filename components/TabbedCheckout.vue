@@ -480,7 +480,9 @@
                               ref="confirmVoucher"
                               :screen="'modal'"
                               :line-items="lineItems"
+                              :invoice="invoice"
                               @choose-voucher="onVoucherSelected"
+                              @change-voucher="onVoucherChanged"
                               @submit-voucher="onVoucherSubmited"
                             />
                           </v-tab-item>
@@ -701,8 +703,6 @@ export default {
       return parseFloat(this.invoice.price) === 0
     },
     itemv() {
-      console.log("INVOICE ITEMV")
-      console.log(this.invoice)
       return this.invoice.payments[this.selectedCurrency]
     },
     currentPrice() {
@@ -815,6 +815,9 @@ export default {
     this.$bus.$off("showDetails")
   },
   mounted() {
+    // This method will skip the screen to user input its address
+    this.skipCheckoutUserAddress()
+
     // Update the invoice object since it only updates in the backend
     this.$on("update:invoice", (invoice) => {
       console.log("Received update:invoice event with invoice:", invoice)
@@ -833,6 +836,54 @@ export default {
     this.startProgressTimer()
   },
   methods: {
+    skipCheckoutUserAddress() {
+      let address
+      if (!window.ethereum.selectedAddress) {
+        // If the user is not connected to Metamask, connect
+        window.ethereum
+          .request({ method: "eth_requestAccounts" })
+          .then((accounts) => {
+            // Do something with the selected address (e.g. store it in a Vuex store)
+            address = accounts[0]
+          })
+          .catch((error) => {
+            console.error("Metamask error:", error)
+          })
+      } else {
+        // If the user is already logged in to Metamask, get the selected address
+        address = window.ethereum.selectedAddress
+      }
+
+      this.invoice.payments.forEach((payment, index) => {
+        if (
+          payment.payment_url.startsWith("ethereum:") &&
+          !payment.user_address
+        ) {
+          this.updatePaymentUserAddress(address, payment.id, index)
+        }
+      })
+    },
+    updatePaymentUserAddress(address, paymentID, paymentIndex) {
+      this.$axios
+        .patch(`/invoices/${this.invoice.id}/details`, {
+          id: paymentID,
+          address,
+        })
+        .then((r) => {
+          this.addressUpdating = false
+          this.paymentAddressErrors = []
+          const payments = this.invoice.payments
+          payments[paymentIndex].user_address = address
+          this.$emit("update:invoice", { ...this.invoice, payments })
+        })
+        .catch((err) => {
+          this.addressUpdating = false
+          if (err.response && err.response.data.detail === "Invalid address") {
+            this.paymentAddressErrors = ["Invalid address"]
+          }
+        })
+    },
+
     fetchTokenABI() {
       if (!this.itemv) return
       if (!(this.currentCurrency in this.abiCache)) {
@@ -916,7 +967,6 @@ export default {
         if (!ref.validate()) return
         address = this.inputPaymentAddress
       }
-      console.log(address)
       this.addressUpdating = true
       // This patch will be responsible to determine which payment method is being used
       this.$axios
@@ -948,67 +998,100 @@ export default {
     openInWallet(url) {
       window.open(url)
     },
-    async onVoucherSelected(selectedNFT, addressFunc) {
-      // Handle the selectedNFT hereå
+    async onVoucherChanged(selectedNFT) {
+      if (typeof window.ethereum === "undefined") {
+        this.showError("Error connecting to Metamask")
+        return
+      }
+      try {
+        const chainId = 80001
+        const data = {
+          chainID: chainId,
+          voucherID: selectedNFT.id.tokenId,
+          invoiceID: this.invoice.id,
+          id: this.itemv.id,
+        }
+        // Gets the value of the NFT in the selected currency
+        const resp = await this.$axios.post("/vouchers/submit/", data)
+        if (resp.status === 200) {
+          this.voucherValue = resp.data
+        }
 
+        const newSentAmount = this.voucherValue.toFixed(8)
+
+        await this.$axios
+          .patch(`/invoices/${this.invoice.id}/customer`, {
+            sent_amount: newSentAmount,
+            paymentID: this.itemv.id,
+          })
+          .then((r) => {
+            this.$emit("update:invoice", {
+              ...this.invoice,
+              sent_amount: newSentAmount,
+            })
+          })
+      } catch (error) {
+        console.error(error)
+      }
+    },
+
+    async onVoucherSelected(selectedNFT, addressFunc) {
       const address = addressFunc()
       // Add to the selected tcurrency, the address of the user
       const payments = this.invoice.payments
       payments[this.selectedCurrency].user_address = address
       this.$emit("update:invoice", { ...this.invoice, payments })
 
-      if (typeof window.ethereum !== "undefined") {
-        try {
-          const chainId = parseInt(await window.ethereum.networkVersion)
-
-          console.log("Payment ID")
-          console.log(this.itemv.id)
-          const data = {
-            chainID: chainId,
-            voucherID: selectedNFT.id.tokenId,
-            invoiceID: this.invoice.id,
-            id: this.itemv.id,
-          }
-          // Gets the value of the NFT in the selected currency
-          try {
-            await this.$axios
-              .post("/vouchers/submit/", data)
-              .then((resp) => {
-                if (resp.status === 200) {
-                  this.voucherValue = resp.data
-                  console.log(this.voucherValue)
-                }
-              })
-              .catch((err) => this.handleErr(err))
-          } catch (error) {
-            console.log(error)
-          }
-        } catch (error) {
-          console.error(error)
-        }
+      if (typeof window.ethereum === "undefined") {
+        this.showError("Error connecting to Metamask")
+        return
       }
 
-      // TODO:
-      // Add a option change the voucher selected and the discount applied
+      try {
+        // const chainId = parseInt(await window.ethereum.networkVersion)
+        const chainId = 80001
+        const data = {
+          chainID: chainId,
+          voucherID: selectedNFT.id.tokenId,
+          invoiceID: this.invoice.id,
+          id: this.itemv.id,
+        }
+        // Gets the value of the NFT in the selected currency
+        const resp = await this.$axios.post("/vouchers/submit/", data)
+        if (resp.status === 200) {
+          this.voucherValue = resp.data
+        }
+      } catch (error) {
+        console.error(error)
+      }
 
       const sentAmount = parseFloat(this.invoice.sent_amount) // convert the string to a float
       const newSentAmount = sentAmount + this.voucherValue
       const newSentAmountStr = newSentAmount.toFixed(8) // format the result as a string with 8 decimal places
-      console.log(newSentAmountStr)
 
-      this.$axios
-        .patch(`/invoices/${this.invoice.id}/customer`, {
-          sent_amount: newSentAmountStr,
-          paymentID: this.itemv.id,
-          // paid_currency: "MATIC",
-        })
-        .then((r) => {
-          this.$emit("update:invoice", {
-            ...this.invoice,
+      console.log(newSentAmountStr)
+      console.log(this.invoice)
+      console.log(this.itemv)
+      console.log(parseFloat(this.itemv.amount))
+      console.log(newSentAmount)
+      if (newSentAmount >= parseFloat(this.itemv.amount)) {
+        // the voucher's value is superior to the invoice so we can proceed to checkout
+        this.$refs.confirmVoucher.$emit("confirm-voucher-button", false)
+      } else {
+        this.$axios
+          .patch(`/invoices/${this.invoice.id}/customer`, {
             sent_amount: newSentAmountStr,
+            paymentID: this.itemv.id,
             // paid_currency: "MATIC",
           })
-        })
+          .then((r) => {
+            this.$emit("update:invoice", {
+              ...this.invoice,
+              sent_amount: newSentAmountStr,
+              // paid_currency: "MATIC",
+            })
+          })
+      }
     },
     async onVoucherSubmited(selectedNFT, addressFunc) {
       // Creates a transaction and if it is all godd, updates the invoice

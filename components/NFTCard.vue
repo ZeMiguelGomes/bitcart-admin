@@ -7,7 +7,7 @@
         isSelected ? 'border-3 border-primary' : '',
       ]"
       outlined
-      :width="screen === 'admin' ? '100%' : '300px'"
+      :width="screen === 'admin' ? '300px' : '300px'"
       @click="onCardClick"
     >
       <v-img
@@ -45,15 +45,19 @@
         </v-btn>
       </v-card-actions>
       <v-card-actions v-if="screen === 'admin'">
-        <tooltip-icon
-          icon="mdi-delete"
-          text="Delete"
-          class="mr-2"
-          @click="deleteNFT()"
-        ></tooltip-icon>
-        <v-btn color="primary" @click="transferNFTPage(nft)">
-          Transfer NFT
-        </v-btn>
+        <div class="mr-4">
+          <tooltip-icon
+            icon="mdi-delete"
+            text="Delete"
+            class="mr-2"
+            @click="deleteNFT()"
+          ></tooltip-icon>
+        </div>
+        <div class="ml-8">
+          <v-btn color="primary" @click="transferNFTPage(nft)">
+            Transfer NFT
+          </v-btn>
+        </div>
       </v-card-actions>
     </v-card>
     <v-snackbar
@@ -124,7 +128,6 @@ export default {
     },
   },
   mounted() {
-    console.log(this.nft)
     this.fromAddress = localStorage.getItem("userAddress")
   },
   methods: {
@@ -184,6 +187,9 @@ export default {
         this.web3 = new window.Web3(window.ethereum)
 
         await this.$utils.deleteNFT.call(this)
+
+        // Refresh the page after deletion is successful
+        window.location.reload()
       } else {
         window.location.href = "https://metamask.io/download"
       }

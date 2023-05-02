@@ -12,6 +12,7 @@ export default {
   beforeCreate() {
     if (process.client) {
       this.$store.dispatch("syncStats")
+      this.$store.dispatch("fetchVoucherCount")
     }
   },
 }
