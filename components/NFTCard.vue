@@ -128,7 +128,7 @@ export default {
     },
   },
   mounted() {
-    this.fromAddress = localStorage.getItem("userAddress")
+    this.fromAddress = sessionStorage.getItem("userAddress")
   },
   methods: {
     openBlockExplorer() {

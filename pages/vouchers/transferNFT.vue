@@ -66,7 +66,7 @@ export default {
     console.log("PARAMS:")
     console.log(this.nftObject)
 
-    this.fromAddress = localStorage.getItem("userAddress")
+    this.fromAddress = sessionStorage.getItem("userAddress")
 
     this.fetchTokenABI()
 

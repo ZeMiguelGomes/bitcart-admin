@@ -159,7 +159,7 @@ export default {
   async mounted() {
     if (this.screen === "admin") {
       // This is inside the admin dashboard
-      const userAddress = localStorage.getItem("userAddress")
+      const userAddress = sessionStorage.getItem("userAddress")
       if (userAddress && typeof window.ethereum !== "undefined") {
         try {
           await window.ethereum.request({ method: "eth_requestAccounts" })
@@ -209,7 +209,7 @@ export default {
           this.chainId = chainId
           this.providerLoaded = true
           // Adds user address to local storage
-          localStorage.setItem("userAddress", this.address)
+          sessionStorage.setItem("userAddress", this.address)
         } catch (error) {
           console.error(error)
         }
