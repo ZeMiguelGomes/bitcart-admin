@@ -1,21 +1,22 @@
 <template>
-  <div>
+  <div class="">
     <v-card
-      class="nft-card d-flex align-center justify-center"
+      class="nft-card d-flex justify-between"
       :class="[
-        screen === 'modal' ? '' : 'flex-column',
+        screen === 'modal' ? 'align-center' : 'flex-column',
         isSelected ? 'border-3 border-primary' : '',
       ]"
       outlined
       :width="screen === 'admin' ? '300px' : '300px'"
+      :height="screen === 'admin' ? '750px' : 'auto'"
       @click="onCardClick"
     >
       <v-img
         :src="nftMedia"
         :alt="nft.title"
-        :height="screen === 'admin' ? '300px' : '150px'"
+        :max-height="screen === 'admin' ? '300px' : '150px'"
         :width="screen === 'admin' ? '300px' : '150px'"
-        class="rounded-t-md"
+        class="rounded"
       ></v-img>
 
       <v-card-text>
@@ -31,29 +32,42 @@
           <p class="mb-4">{{ contractAddressShortened }}</p>
           <p class="text-gray-600">{{ nft.description.substr(0, 150) }}</p>
           <div
-            v-for="attribute in nft.metadata.attributes"
+            v-for="attribute in filteredAttributes"
             :key="attribute.trait_type"
           >
-            <span class="font-weight-bold">{{ attribute.trait_type }}: </span>
-            <span>{{ attribute.value }}</span>
+            <template v-if="attribute.value !== undefined">
+              <span class="font-weight-bold">{{ attribute.trait_type }}: </span>
+              <span v-if="attribute.trait_type === 'Store'">
+                {{ getStoreNames(attribute.value).join(", ") }}
+              </span>
+              <span v-else-if="attribute.trait_type === 'Product ID'">
+                {{ attribute.value.join(", ") }}
+              </span>
+              <span v-else>{{ attribute.value }}</span>
+            </template>
           </div>
         </template>
       </v-card-text>
-      <v-card-actions v-if="screen === 'admin'" class="d-flex justify-center">
+      <v-card-actions
+        v-if="screen === 'admin'"
+        class="d-flex justify-center mt-auto"
+      >
         <v-btn color="primary" @click="openBlockExplorer">
           View on Block Explorer
         </v-btn>
       </v-card-actions>
-      <v-card-actions v-if="screen === 'admin'">
-        <div class="mr-4">
+      <v-card-actions
+        v-if="screen === 'admin'"
+        class="d-flex justify-content mb-4"
+      >
+        <div>
           <tooltip-icon
             icon="mdi-delete"
             text="Delete"
-            class="mr-2"
             @click="deleteNFT()"
           ></tooltip-icon>
         </div>
-        <div class="ml-8">
+        <div>
           <v-btn color="primary" @click="transferNFTPage(nft)">
             Transfer NFT
           </v-btn>
@@ -91,6 +105,12 @@ export default {
       type: String,
       required: true,
     },
+    stores: {
+      type: Array,
+      default() {
+        return []
+      },
+    },
   },
   data() {
     return {
@@ -116,6 +136,11 @@ export default {
     }
   },
   computed: {
+    filteredAttributes() {
+      return this.nft.metadata.attributes.filter(
+        (attribute) => attribute.value !== undefined && attribute.value !== ""
+      )
+    },
     nftMedia() {
       return this.nft.media[0].gateway
     },
@@ -131,6 +156,13 @@ export default {
     this.fromAddress = sessionStorage.getItem("userAddress")
   },
   methods: {
+    getStoreNames(storeIds) {
+      return storeIds.map((storeId) => this.getStoreName(storeId))
+    },
+    getStoreName(storeId) {
+      const store = this.stores.find((store) => store.id === storeId)
+      return store ? store.name : storeId
+    },
     openBlockExplorer() {
       const chainId = parseInt(this.chainId)
 
@@ -160,9 +192,10 @@ export default {
       window.open(blockExplorerUrl, "_blank")
     },
     transferNFTPage(nft) {
+      const tokenDecimal = parseInt(nft.id.tokenId, 16)
       this.$router.push({
         path: `${this.$route.path}/transferNFT`,
-        query: { nft: JSON.stringify(nft) },
+        query: { id: tokenDecimal },
       })
     },
 

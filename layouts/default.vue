@@ -260,6 +260,12 @@ export default {
           to: "/vouchers",
           order: 13,
         },
+        {
+          icon: "mdi-bitcoin",
+          text: "Torus Wallet",
+          to: "/toruswallet",
+          order: 14,
+        },
       ],
       superuserItems: [
         {

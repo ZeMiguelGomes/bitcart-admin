@@ -276,18 +276,29 @@ export default {
   async transferNFT() {
     // const chainid = await this.web3.eth.getChainId()
     // chain ID is always MATIC 80001
-    const chainid = await this.web3.eth.getChainId()
-    console.log("ChainID: " + chainid)
-    console.log("Token ID: " + this.nftObject.id.tokenId)
+    // const chainid = await this.web3.eth.getChainId()
     // TODO: Check if the chain id is equal gto the one received
+
+    const accounts = await window.ethereum.request({
+      method: "eth_accounts",
+    })
+
+    const metamaskConnectedAccount = accounts[0]
+
+    if (
+      metamaskConnectedAccount.toLowerCase() !== this.fromAddress.toLowerCase()
+    ) {
+      this.isTransferLoading = false
+      return this.showError(
+        `Please change your Metamask account to the correct address`
+      )
+    }
 
     const contract = await new this.web3.eth.Contract(
       this.abiData,
       this.contractAddress
     )
-    console.log(contract)
     const tokenIdHex = this.web3.utils.toHex(this.nftObject.id.tokenId)
-    console.log(tokenIdHex)
 
     const functionSignature = contract.methods
       .safeTransfer(
@@ -310,16 +321,14 @@ export default {
       gas: this.web3.utils.toHex(gasEstimate),
       data: functionSignature,
     }
-    console.log(transactionParameters)
-    console.log(tokenIdHex)
 
     // sign the transaction via MetaMask
     try {
       const txHash = await this.web3.eth.sendTransaction(transactionParameters)
-      console.log("Transaction hash: ", txHash)
+      this.showMessage(true, "Voucher transfered successfully!")
       return { success: true, txHash }
     } catch (error) {
-      console.log("Error transferring NFT: ", error)
+      this.showError(error.message)
       return { success: false, error }
     }
   },
@@ -328,9 +337,6 @@ export default {
     const connectedChainID = await this.web3.eth.getChainId()
 
     if (chainid !== connectedChainID) {
-      console.log("The chain id Is not Polygon")
-      console.log(this.web3)
-
       try {
         // Switch to Mumbai network (network ID 80001)
         await window.ethereum.request({

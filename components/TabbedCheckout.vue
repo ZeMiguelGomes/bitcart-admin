@@ -481,6 +481,7 @@
                               :screen="'modal'"
                               :line-items="lineItems"
                               :invoice="invoice"
+                              class="mt-4"
                               @choose-voucher="onVoucherSelected"
                               @change-voucher="onVoucherChanged"
                               @submit-voucher="onVoucherSubmited"
@@ -1019,10 +1020,14 @@ export default {
 
         const newSentAmount = this.voucherValue.toFixed(8)
 
+        const voucherDecimalID = parseInt(selectedNFT.id.tokenId, 16)
+        const metadataInvoice = { voucher: voucherDecimalID }
+
         await this.$axios
           .patch(`/invoices/${this.invoice.id}/customer`, {
             sent_amount: newSentAmount,
             paymentID: this.itemv.id,
+            metadata: metadataInvoice,
           })
           .then((r) => {
             this.$emit("update:invoice", {
@@ -1078,10 +1083,14 @@ export default {
         // the voucher's value is superior to the invoice so we can proceed to checkout
         this.$refs.confirmVoucher.$emit("confirm-voucher-button", false)
       } else {
+        // Store the id of the voucher submitted
+        const voucherDecimalID = parseInt(selectedNFT.id.tokenId, 16)
+        const metadataInvoice = { voucher: voucherDecimalID }
         this.$axios
           .patch(`/invoices/${this.invoice.id}/customer`, {
             sent_amount: newSentAmountStr,
             paymentID: this.itemv.id,
+            metadata: metadataInvoice,
             // paid_currency: "MATIC",
           })
           .then((r) => {
@@ -1100,6 +1109,21 @@ export default {
       // 2-> After confirming that, add the transaction hash to the list of current tranactions of the invoice
       await this.fetchVoucherTokenABI()
 
+      if (this.voucherValue === 0) {
+        const chainId = 80001
+        const data = {
+          chainID: chainId,
+          voucherID: selectedNFT.id.tokenId,
+          invoiceID: this.invoice.id,
+          id: this.itemv.id,
+        }
+        // Gets the value of the NFT in the selected currency
+        const resp = await this.$axios.post("/vouchers/submit/", data)
+        if (resp.status === 200) {
+          this.voucherValue = resp.data
+        }
+      }
+
       if (window.ethereum) {
         this.web3 = new window.Web3(window.ethereum)
         this.nft = selectedNFT
@@ -1111,11 +1135,6 @@ export default {
           // 1 -> Add tx_hash to the invoice, check if I need to fetch the updated invoice object of if the update:invoice is enough
           if (deleteNFTResult.success) {
             const txHash = deleteNFTResult.txHash
-            console.log("NFT Tx Hash")
-            console.log(txHash)
-            // txHash.transactionHash
-            console.log("Final Invoice")
-            console.log(this.invoice)
 
             const sentAmount = parseFloat(this.invoice.sent_amount) // convert the string to a float
             const newSentAmount = sentAmount + this.voucherValue

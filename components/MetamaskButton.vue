@@ -83,7 +83,6 @@ export default {
         this.latestInvoiceData = latestInvoiceData
         this.dueAmount = await this.getDueAmount()
         this.web3 = new window.Web3(window.ethereum)
-        console.log("Fetched Latest invoice")
         await this.$utils.connectToWallet.call(
           this,
           "metamask",

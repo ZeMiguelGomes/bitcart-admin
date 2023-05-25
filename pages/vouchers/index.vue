@@ -20,7 +20,7 @@
 
       <v-tab-item>
         <v-container>
-          <CreateVoucher />
+          <CreateVoucher @modalClosed="switchToMyNFTsTab" />
         </v-container>
       </v-tab-item>
     </v-tabs>
@@ -39,6 +39,12 @@ export default {
     return {
       tab: null,
     }
+  },
+  methods: {
+    switchToMyNFTsTab() {
+      this.tab = 0 // Switch to the "My NFTs" tab
+      window.location.reload()
+    },
   },
 }
 </script>

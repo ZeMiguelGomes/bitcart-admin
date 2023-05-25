@@ -132,16 +132,16 @@ export const actions = {
       .get("/tor/services")
       .then((r) => commit("services", r.data))
   },
-  async fetchVoucherCount({ commit, dispatch }, alwaysRun = false) {
+  fetchVoucherCount({ commit, dispatch }, alwaysRun = false) {
     if (this.state.auth.loggedIn) {
       if (window.ethereum) {
-        const accounts = await window.ethereum.request({
+        /* const accounts = await window.ethereum.request({
           method: "eth_requestAccounts",
         })
-        const address = accounts[0]
+        const address = accounts[0] */
 
         this.$axios
-          .get(`/vouchers/stats?address=${address}`)
+          .get(`/vouchers/stats`)
           .then((resp) => commit("setVouchers", resp.data))
       } else {
         commit("setVouchers", 0)

@@ -55,12 +55,19 @@
             <div class="font-weight-bold mr-2">Store:</div>
             <div>
               {{
-                voucher.attributes.find((a) => a.trait_type === "Store")
-                  .value[0]
+                getStoreNames(
+                  voucher.attributes.find((a) => a.trait_type === "Store").value
+                ).join(", ")
               }}
             </div>
           </div>
-          <div class="d-flex mb-3">
+          <div
+            v-if="
+              voucher.attributes.find((a) => a.trait_type === 'Product ID') !==
+              undefined
+            "
+            class="d-flex mb-3"
+          >
             <div class="font-weight-bold mr-2">Products ID:</div>
             <div>
               {{
@@ -92,10 +99,12 @@ export default {
       voucher: {},
       isModalVisible: this.showModal,
       isLoading: true,
+      stores: null,
     }
   },
   async mounted() {
     await this.fetchVoucher(this.voucherUri)
+    await this.fetchStores()
     this.isLoading = false
   },
   methods: {
@@ -112,6 +121,30 @@ export default {
     },
     closeModal() {
       this.$emit("close")
+    },
+    async fetchStores() {
+      await this.$axios
+        .get("/stores")
+        .then((response) => {
+          // Save store information to component data
+          this.stores = response.data.result.map((store) => {
+            return {
+              id: store.id,
+              name: store.name,
+            }
+          })
+          console.log(this.stores)
+        })
+        .catch((error) => {
+          console.error(error)
+        })
+    },
+    getStoreNames(storeIds) {
+      return storeIds.map((storeId) => this.getStoreNameById(storeId))
+    },
+    getStoreNameById(storeId) {
+      const store = this.stores.find((store) => store.id === storeId)
+      return store ? store.name : storeId
     },
   },
 }

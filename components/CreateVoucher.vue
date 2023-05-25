@@ -254,7 +254,7 @@
         v-if="showVoucherModal && voucherURI"
         :show-modal="showVoucherModal"
         :voucher-uri="voucherURI"
-        @close="showVoucherModal = false"
+        @close="handleModalClose"
       />
 
       <v-container>
@@ -345,7 +345,18 @@ export default {
 
         console.log(newVal)
         console.log(oldVal)
-        this.fetchProducts(newStoreIds)
+
+        if (this.voucherType === "Product-based") {
+          this.fetchProducts(newStoreIds)
+        } else {
+          const storeSelected = this.storeOptions.find(
+            (option) => option.id === newStoreIds.toString()
+          )
+
+          if (storeSelected !== undefined) {
+            if (storeSelected.hasWarning) storeSelected.hasWarning = false
+          }
+        }
 
         // Remove products of removed stores
         let removedStores = []
@@ -379,6 +390,10 @@ export default {
       })
   },
   methods: {
+    handleModalClose() {
+      this.showVoucherModal = false
+      this.$emit("modalClosed") // Emit the event to notify the parent component
+    },
     showMessage(ok, text) {
       this.snackbarMessage = text
       this.snackbar = true
