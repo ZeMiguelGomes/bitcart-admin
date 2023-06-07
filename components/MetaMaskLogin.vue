@@ -1,6 +1,9 @@
 <template>
   <v-container class="d-flex flex-column">
-    <div v-if="isPageLoading" class="d-flex justify-center mt-5 mb-5">
+    <div
+      v-if="isPageLoading && screen !== 'modal'"
+      class="d-flex justify-center mt-5 mb-5"
+    >
       <v-progress-circular
         indeterminate
         size="40"

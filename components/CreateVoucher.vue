@@ -309,6 +309,13 @@ export default {
         { name: "Item 4", productID: 4, image: null },
         { name: "Item 5", productID: 5, image: null },
       ],
+      statesCopy: [
+        { name: "Item 1", productID: 1, image: null },
+        { name: "Item 2", productID: 2, image: null },
+        { name: "Item 3", productID: 3, image: null },
+        { name: "Item 4", productID: 4, image: null },
+        { name: "Item 5", productID: 5, image: null },
+      ],
       productSearch: null,
       descriptionLimit: 60,
       entries: [],
