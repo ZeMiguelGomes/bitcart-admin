@@ -191,10 +191,12 @@ export default {
         const data = JSON.parse(event.data)
         console.log("DATA JSON")
         console.log(data)
+        console.log(this.invoice)
         const status = data.status
         if (
-          status === "pending" &&
-          this.invoice.sent_amount !== data.sent_amount
+          (status === "pending" &&
+            this.invoice.sent_amount !== data.sent_amount) ||
+          this.invoice.sent_amount === data.sent_amount
         ) {
           // received partial payment
           // get the latest information about the invoice
@@ -209,6 +211,7 @@ export default {
             this.latestInvoiceData.tx_hashes &&
             this.latestInvoiceData.tx_hashes.length > 0
           ) {
+            console.log("_ID TX HASH METAMASK")
             console.log(this.latestInvoiceData.tx_hashes)
             blockVoucherTab = false
           }

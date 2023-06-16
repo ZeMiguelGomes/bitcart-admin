@@ -166,7 +166,7 @@ export default {
           src: `https://unpkg.com/@metamask/detect-provider/dist/detect-provider.min.js`,
         },
         {
-          src: `https://unpkg.com/web3@latest/dist/web3.min.js`,
+          src: `https://unpkg.com/web3@1/dist/web3.min.js`,
         },
       ],
     }
@@ -220,12 +220,14 @@ export default {
     window.ethereum.on("accountsChanged", (accounts) => {
       if (accounts.length > 0) {
         const account = accounts[0]
-        const foundWallet = this.ethWalletAddress.find(
-          (wallet) => wallet.xpub.toLowerCase() === account
-        )
-        if (foundWallet) {
-          console.log("Está presente")
-          this.connectWallet()
+        if (this.screen === "admin") {
+          const foundWallet = this.ethWalletAddress.find(
+            (wallet) => wallet.xpub.toLowerCase() === account
+          )
+          if (foundWallet) {
+            console.log("Está presente")
+            this.connectWallet()
+          }
         }
       } else {
         this.address = null
@@ -308,6 +310,8 @@ export default {
     },
     async connectAPI() {
       let url = ""
+      let headers = {} // Initialize headers object
+
       if (this.screen === "admin") {
         // Gets all the NFT in the wallet
         url = `/vouchers/nft/?userAddress=${this.address}&chainID=${this.chainId}`
@@ -320,12 +324,14 @@ export default {
           JSON.stringify(this.lineItems)
         )
         url = `/vouchers/nftClient/?userAddress=${this.address}&chainID=${this.chainId}&storeID=${this.invoice.store_id}&lineItems=${encodedLineItems}`
+        headers = { "X-Website-URL": document.referrer }
       }
       await this.$axios
-        .get(url)
+        .get(url, { headers })
         .then((resp) => {
           // Get all the data (invoices, wallets, stores) to display in the table
           this.NFT = resp.data?.ownedNfts
+          console.log(resp.data?.ownedNfts)
           this.allNFT = [...resp.data?.ownedNfts]
           this.errorLogin = false
           this.isLoading = false
@@ -386,6 +392,8 @@ export default {
       this.selectedNFT = this.allNFT.find(
         (nft) => nft.id === this.selectedCardId
       )
+      console.log(this.selectedNFT)
+
       // Show on the screen only the voucher that he initially choose
       if (this.selectedNFT) {
         this.NFT = [this.selectedNFT]

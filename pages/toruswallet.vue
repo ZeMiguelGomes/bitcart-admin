@@ -26,7 +26,7 @@ export default {
           src: `https://cdn.jsdelivr.net/npm/@toruslabs/torus-embed`,
         },
         {
-          src: `https://unpkg.com/web3@latest/dist/web3.min.js`,
+          src: `https://unpkg.com/web3@1/dist/web3.min.js`,
         },
       ],
     }

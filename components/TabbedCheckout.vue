@@ -694,7 +694,7 @@ export default {
           src: `https://unpkg.com/@metamask/detect-provider/dist/detect-provider.min.js`,
         },
         {
-          src: `https://unpkg.com/web3@latest/dist/web3.min.js`,
+          src: `https://unpkg.com/web3@1/dist/web3.min.js`,
         },
       ],
     }
@@ -1011,6 +1011,7 @@ export default {
           voucherID: selectedNFT.id.tokenId,
           invoiceID: this.invoice.id,
           id: this.itemv.id,
+          voucherContract: selectedNFT.contract.address,
         }
         // Gets the value of the NFT in the selected currency
         const resp = await this.$axios.post("/vouchers/submit/", data)
@@ -1060,6 +1061,7 @@ export default {
           voucherID: selectedNFT.id.tokenId,
           invoiceID: this.invoice.id,
           id: this.itemv.id,
+          voucherContract: selectedNFT.contract.address,
         }
         // Gets the value of the NFT in the selected currency
         const resp = await this.$axios.post("/vouchers/submit/", data)
@@ -1079,12 +1081,23 @@ export default {
       console.log(this.itemv)
       console.log(parseFloat(this.itemv.amount))
       console.log(newSentAmount)
+
       if (newSentAmount >= parseFloat(this.itemv.amount)) {
         // the voucher's value is superior to the invoice so we can proceed to checkout
         this.$refs.confirmVoucher.$emit("confirm-voucher-button", false)
       } else {
         // Store the id of the voucher submitted
-        const voucherDecimalID = parseInt(selectedNFT.id.tokenId, 16)
+        let voucherDecimalID
+
+        if (this.isUUIDFormat(selectedNFT.id.tokenId)) {
+          const decimal = this.convertUUIDToDecimal(selectedNFT.id.tokenId)
+          console.log(decimal)
+          voucherDecimalID = decimal
+        } else {
+          voucherDecimalID = parseInt(selectedNFT.id.tokenId, 16)
+          console.log(voucherDecimalID)
+        }
+
         const metadataInvoice = { voucher: voucherDecimalID }
         this.$axios
           .patch(`/invoices/${this.invoice.id}/customer`, {
@@ -1102,6 +1115,16 @@ export default {
           })
       }
     },
+    isUUIDFormat(str) {
+      const uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      return uuidPattern.test(str)
+    },
+    convertUUIDToDecimal(uuid) {
+      const hex = uuid.replace(/-/g, "")
+      const decimal = BigInt(`0x${hex}`)
+      return decimal.toString()
+    },
     async onVoucherSubmited(selectedNFT, addressFunc) {
       // Creates a transaction and if it is all godd, updates the invoice
       // TODO:
@@ -1116,6 +1139,7 @@ export default {
           voucherID: selectedNFT.id.tokenId,
           invoiceID: this.invoice.id,
           id: this.itemv.id,
+          voucherContract: selectedNFT.contract.address,
         }
         // Gets the value of the NFT in the selected currency
         const resp = await this.$axios.post("/vouchers/submit/", data)
@@ -1124,52 +1148,84 @@ export default {
         }
       }
 
-      if (window.ethereum) {
-        this.web3 = new window.Web3(window.ethereum)
-        this.nft = selectedNFT
-        this.fromAddress = addressFunc()
-
-        try {
-          const deleteNFTResult = await this.$utils.deleteNFT.call(this)
-          // TODO:
-          // 1 -> Add tx_hash to the invoice, check if I need to fetch the updated invoice object of if the update:invoice is enough
-          if (deleteNFTResult.success) {
-            const txHash = deleteNFTResult.txHash
-
-            const sentAmount = parseFloat(this.invoice.sent_amount) // convert the string to a float
-            const newSentAmount = sentAmount + this.voucherValue
-            const newSentAmountStr = newSentAmount.toFixed(8) // format the result as a string with 8 decimal places
-            console.log(txHash.transactionHash)
-
-            this.$axios
-              .patch(`/invoices/${this.invoice.id}/customer`, {
-                sent_amount: newSentAmountStr,
-                tx_hashes: txHash.transactionHash,
-                paymentID: this.itemv.id,
-                // paid_currency: "MATIC",
-              })
-              .then((r) => {
-                this.$emit("update:invoice", {
-                  ...this.invoice,
-                  sent_amount: newSentAmountStr,
-                  tx_hashes: txHash.transactionHash,
-
-                  // paid_currency: "MATIC",
-                })
-              })
-            console.log("DONE")
-          } else {
-            this.$refs.confirmVoucher.$emit(
-              "show-error",
-              "Error transfering the voucher"
-            )
-          }
-        } catch (error) {
-          this.$refs.confirmVoucher.$emit("show-error", error.message)
-        }
+      const isVoucherStock = await this.$axios.get(
+        `vouchers/check-stock/${selectedNFT.contract.address}`
+      )
+      console.log(isVoucherStock)
+      if (isVoucherStock.data === true) {
+        // Submit like a Stock without calling the Smart contract
+        console.log("Voucher is Stock")
+        this.processVoucherStock()
       } else {
-        window.location.href = "https://metamask.io/download"
+        console.log("Voucher is NOT Stock")
+        // eslint-disable-next-line no-lonely-if
+        if (window.ethereum) {
+          this.web3 = new window.Web3(window.ethereum)
+          this.nft = selectedNFT
+          this.fromAddress = addressFunc()
+
+          try {
+            const deleteNFTResult = await this.$utils.deleteNFT.call(this)
+            // TODO:
+            // 1 -> Add tx_hash to the invoice, check if I need to fetch the updated invoice object of if the update:invoice is enough
+            if (deleteNFTResult.success) {
+              const txHash = deleteNFTResult.txHash
+              this.processVoucherStock(txHash)
+            } else {
+              this.$refs.confirmVoucher.$emit(
+                "show-error",
+                "Error transfering the voucher"
+              )
+            }
+          } catch (error) {
+            this.$refs.confirmVoucher.$emit("show-error", error.message)
+          }
+        } else {
+          window.location.href = "https://metamask.io/download"
+        }
       }
+    },
+    async processVoucherStock(txHash) {
+      const sentAmount = parseFloat(this.invoice.sent_amount)
+      const newSentAmount = sentAmount + this.voucherValue
+      const newSentAmountStr = newSentAmount.toFixed(8)
+
+      const requestBody = {
+        sent_amount: newSentAmountStr,
+        paymentID: this.itemv.id,
+      }
+
+      if (txHash) {
+        requestBody.tx_hashes = txHash.transactionHash
+      } else {
+        requestBody.tx_hashes = null
+      }
+      const latestInvoiceData = await this.getInvoice()
+
+      this.$axios
+        .patch(`/invoices/${this.invoice.id}/customer`, requestBody)
+        .then((r) => {
+          const updatedInvoice = {
+            ...latestInvoiceData,
+            sent_amount: newSentAmountStr,
+          }
+
+          if (txHash) {
+            updatedInvoice.tx_hashes = txHash.transactionHash
+          } else {
+            requestBody.tx_hashes = null
+          }
+
+          this.$emit("update:invoice", updatedInvoice)
+        })
+    },
+    async getInvoice() {
+      return await this.$axios
+        .get(`/invoices/${this.$route.params.id}`)
+        .then((resp) => {
+          return resp.data
+        })
+        .catch((err) => this.setError(err))
     },
     async fetchVoucherTokenABI() {
       // Gets the ABI to create a transaction

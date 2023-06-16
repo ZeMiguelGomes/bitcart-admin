@@ -130,7 +130,7 @@ export default {
           src: `https://unpkg.com/@metamask/detect-provider/dist/detect-provider.min.js`,
         },
         {
-          src: `https://unpkg.com/web3@latest/dist/web3.min.js`,
+          src: `https://unpkg.com/web3@1/dist/web3.min.js`,
         },
       ],
     }

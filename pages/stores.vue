@@ -62,6 +62,17 @@
     />
     <edit-card
       :url="url"
+      :on.sync="showStoreMetadataDialog"
+      :headers="metadataHeaders"
+      :item.sync="item.metadata"
+      :item-index="itemIndex"
+      :show-new="false"
+      :edit-mode="true"
+      :get-edit-url="(item) => getEditURL(item, 'metadata')"
+      title="Shopify Store Metadata"
+    />
+    <edit-card
+      :url="url"
       :on.sync="showShopifyDialog"
       :headers="shopifyHeaders"
       :item="item.plugin_settings ? item.plugin_settings.shopify : {}"
@@ -169,6 +180,11 @@ export default {
           icon: "mdi-palette",
           text: "Theme settings",
           process: this.showThemeSettings,
+        },
+        {
+          icon: "mdi-code-json",
+          text: "Store Metadata",
+          process: this.showStoreMetadataSettings,
         },
         {
           icon: "mdi-store",
@@ -303,6 +319,13 @@ export default {
           help: "https://docs.bitcartcc.com/guides/themes",
         },
       ],
+      metadataHeaders: [
+        {
+          text: "Shopify Store URL",
+          value: "shopify_store_name",
+        },
+        { text: "Allow custom NFT", value: "custom_nft", input: "switch" },
+      ],
       shopifyHeaders: [
         {
           text: "Shop name",
@@ -322,9 +345,15 @@ export default {
       showSettingsDialog: false,
       showShopifyDialog: false,
       showTemplates: false,
+      showStoreMetadataDialog: false,
       url: "stores",
       title: "Store",
     }
+  },
+  watch: {
+    item(newValue) {
+      console.log(newValue) // Imprime o valor atual da variável 'item'
+    },
   },
   beforeMount() {
     this.$bus.$on("updateitem", (item, index) => {
@@ -336,6 +365,7 @@ export default {
   },
   methods: {
     getEditURL(item, type) {
+      console.log(`/${this.url}/${this.item.id}/${type}`)
       return `/${this.url}/${this.item.id}/${type}`
     },
     setup(item, itemIndex) {
@@ -352,6 +382,10 @@ export default {
     },
     showThemeSettings(item, itemIndex) {
       this.showThemeDialog = true
+      this.setup(item, itemIndex)
+    },
+    showStoreMetadataSettings(item, itemIndex) {
+      this.showStoreMetadataDialog = true
       this.setup(item, itemIndex)
     },
     showShopifySettings(item, itemIndex) {
